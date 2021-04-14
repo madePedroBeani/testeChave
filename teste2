@@ -1,3 +1,5 @@
+import { compareDocumentPosition } from "domutils";
+
 function assaabloy() {
   createAssaabloiSession()
     .then(session => {
@@ -12,7 +14,7 @@ function assaabloy() {
         format: "rfid48"
       };
 
-      console.log(session);
+      cardOps(dataForKey, session);
     })
 }
 
@@ -45,6 +47,42 @@ function assaabloySession(data) {
   });
 }
 
+function cardOps(data, session) {
+  const date = new Date().toUTCString();
+  const encodedData = getContentAsBase64EncondedMD5Hash(data);
+  const encoder = localStorage.getItem("settings.addressEncoder") || "Encoder";
+  const queryParams = sortQueryParams(
+    `action=encode&encoder=${encoder}&overwriteValidCard=true&autoJoin=true`
+  );
+  const resourcePath = `/api/v1/cards?${queryParams}`;
+
+  return new Promise((resolve, reject) => {
+    const authParams = [
+      "POST",
+      encodedData,
+      "application/json; charset=UTF-8",
+      "",
+      `X-Aah-Date:${date}`,
+      resourcePath
+    ];
+
+    const auth = createAssaabloyAuthorization(session, authParams);
+    axios
+      .post(`http://localhost:8080${resourcePath}`, data, {
+        headers: {
+          "Content-Type": "application/json; charset=UTF-8",
+          "X-Aah-Date": date,
+          "Content-MD5": encodedData,
+          Authorization: auth
+        }
+      })
+      .then(response => {
+        resolve(response);
+      })
+      .catch(error => reject(error));
+  });
+}
+
 function getContentAsBase64EncondedMD5Hash(body) {
   let md5checksum = CryptoJS.MD5(JSON.stringify(body));
   let base64value = CryptoJS.enc.Base64.stringify(md5checksum);
@@ -54,4 +92,18 @@ function getContentAsBase64EncondedMD5Hash(body) {
 function getISOStringWithoutZoneDesignator(dateString) {
   const date = new Date(dateString);
   return date.toISOString().slice(0, -1);
+}
+
+function sortQueryParams(paramString) {
+  return paramString
+    .split("&")
+    .sort()
+    .join("&");
+}
+
+function createAssaabloyAuthorization(session, authorization) {
+  const signature = CryptoJS.HmacSHA1(authorization.join(`\n`), session.accessKey);
+  const signatureBase64 = CryptoJS.enc.Base64.stringify(signature);
+
+  return `AWS ${session.id}:${signatureBase64}`;
 }
