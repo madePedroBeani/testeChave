@@ -1,0 +1,57 @@
+function assaabloy() {
+  createAssaabloiSession()
+    .then(session => {
+      const dataForKey = {
+        doorOperations: [
+          {
+            doors: ['4'],
+            operation: "guest"
+          }
+        ],
+        expireTime: getISOStringWithoutZoneDesignator('2021-04-15'),
+        format: "rfid48"
+      };
+
+      console.log(session);
+    })
+}
+
+function createAssaabloiSession() {
+  return new Promise((resolve, reject) => {
+    assaabloySession(assaabloySettings.credentials)
+      .then(session => {
+        resolve(session);
+      })
+      .catch(() => {
+        reject();
+      });
+  });
+}
+
+function assaabloySession(data) {
+  return new Promise((resolve, reject) => {
+    axios
+      .post("http://localhost:8080/api/v1/sessions", data, {
+        headers: {
+          "Content-Type": "application/json; charset=UTF-8",
+          "X-Aah-Date": new Date().toUTCString(),
+          "Content-MD5": getContentAsBase64EncondedMD5Hash(data)
+        }
+      })
+      .then(response => {
+        resolve(response.data);
+      })
+      .catch(error => reject(error));
+  });
+}
+
+function getContentAsBase64EncondedMD5Hash(body) {
+  let md5checksum = CryptoJS.MD5(JSON.stringify(body));
+  let base64value = CryptoJS.enc.Base64.stringify(md5checksum);
+  return base64value;
+}
+
+function getISOStringWithoutZoneDesignator(dateString) {
+  const date = new Date(dateString);
+  return date.toISOString().slice(0, -1);
+}
